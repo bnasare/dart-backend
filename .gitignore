@@ -1,0 +1,6 @@
+.DS_Store
+app/.dart_tool/
+app/build/
+app/data/*.sqlite
+app/data/*.sqlite-shm
+app/data/*.sqlite-wal

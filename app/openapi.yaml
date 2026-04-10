@@ -1,0 +1,287 @@
+openapi: 3.0.3
+info:
+  title: Dart Backend Tech Test API
+  version: 1.0.0
+  description: |
+    REST API for notes CRUD, API key authentication, tier-based feature flags, and rate limiting.
+servers:
+  - url: /
+    description: Same-origin server (recommended for /docs)
+  - url: http://localhost:8080
+    description: Local default
+security:
+  - ApiKeyAuth: []
+paths:
+  /health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /openapi.yaml:
+    get:
+      summary: OpenAPI specification
+      security: []
+      responses:
+        '200':
+          description: YAML OpenAPI document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /docs:
+    get:
+      summary: Swagger UI docs page
+      security: []
+      responses:
+        '200':
+          description: HTML documentation page.
+          content:
+            text/html:
+              schema:
+                type: string
+  /v1/feature-flags:
+    get:
+      summary: Get feature flags for the authenticated API key tier
+      responses:
+        '200':
+          description: Tier-specific feature flags.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlagsResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+  /v1/notes:
+    post:
+      summary: Create a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrUpdateNoteRequest'
+      responses:
+        '201':
+          description: Note created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+    get:
+      summary: List notes with pagination
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated notes list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotesPage'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+  /v1/notes/{id}:
+    get:
+      summary: Get a note by id
+      parameters:
+        - $ref: '#/components/parameters/NoteId'
+      responses:
+        '200':
+          description: Note found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+    put:
+      summary: Replace a note
+      parameters:
+        - $ref: '#/components/parameters/NoteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrUpdateNoteRequest'
+      responses:
+        '200':
+          description: Note updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+    delete:
+      summary: Delete a note
+      parameters:
+        - $ref: '#/components/parameters/NoteId'
+      responses:
+        '204':
+          description: Note deleted.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  parameters:
+    NoteId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequestError:
+      description: Invalid request payload or query parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    UnauthorizedError:
+      description: Missing or invalid API key.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFoundError:
+      description: Requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimitError:
+      description: Rate limit exceeded for the API key.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    CreateOrUpdateNoteRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        content:
+          type: string
+          maxLength: 10000
+          default: ''
+    Note:
+      type: object
+      required: [id, title, content, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NotesPage:
+      type: object
+      required: [page, limit, total, items]
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Note'
+    FeatureFlagsResponse:
+      type: object
+      required: [tier, features]
+      properties:
+        tier:
+          type: string
+          enum: [Sandbox, Standard, Enhanced, Enterprise]
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
